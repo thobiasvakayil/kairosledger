@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Charity & Subscription Excel-Grid Matcher</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+
+<body>
+
+  <!-- App Header -->
+  <header>
+    <div class="brand-section">
+      <div class="logo-icon">C</div>
+      <div>
+        <h1>Charity & Subscription Ledger</h1>
+        <p style="font-size: 0.7rem; color: var(--text-secondary); margin-top: -2px;">Interactive Spreadsheet Matcher
+        </p>
+      </div>
+    </div>
+
+    <!-- Tab navigation styled as Excel bottom sheets -->
+    <div class="sheet-tabs">
+      <button class="sheet-tab active" id="tab-transactions" onclick="switchTab('transactions')">
+        📊 Transactions Sheet
+      </button>
+      <button class="sheet-tab" id="tab-people" onclick="switchTab('people')">
+        👥 Master Directory Database
+      </button>
+      <button class="sheet-tab" id="tab-agents" onclick="switchTab('agents')">
+        🧭 Agent Directory
+      </button>
+      <button class="sheet-tab" id="tab-admin" onclick="switchTab('admin')" style="display: none;">
+        🛡 User Management
+      </button>
+    </div>
+  </header>
+
+  <!-- Control Toolbar -->
+  <div class="toolbar">
+    <div class="toolbar-left">
+      <div class="file-upload-wrapper">
+        <button class="btn btn-primary">
+          📥 Upload Statement
+        </button>
+        <input type="file" id="csv-file-input" class="file-upload-input" accept=".csv,.xls,.xlsx"
+          onchange="handleCSVUpload(event)">
+      </div>
+      <button class="btn" onclick="exportToCSV()">
+        📤 Export Matched Sheet
+      </button>
+      <button class="btn btn-success" onclick="addNewTransactionRow()">
+        ➕ Add Row
+      </button>
+    </div>
+    <div class="toolbar-right">
+      <div class="sync-controls">
+        <span id="sync-status" class="sync-status sync-idle" title="Waiting for changes">Idle</span>
+        <span id="user-role-pill" class="sync-status sync-idle" title="Logged in role">Role</span>
+        <span id="user-display-name" class="auth-user-name" title="Logged in user">User</span>
+        <button class="btn btn-sm" onclick="logoutUser()">Logout</button>
+      </div>
+      <!-- <button class="btn btn-danger btn-sm" onclick="clearAllData()">
+        ⚠️ Reset Data
+      </button>
+      <a href="sample_upi_transactions.csv" class="template-link" download>Download Sample CSV</a> -->
+    </div>
+  </div>
+
+  <!-- Main Content Space -->
+  <main>
+
+    <!-- SHEET 1: TRANSACTIONS TAB -->
+    <div id="content-transactions" class="tab-content active">
+      <!-- Live Stats Banner -->
+      <div class="stats-banner">
+        <div class="stat-card">
+          <span class="stat-label">Total Logs</span>
+          <span class="stat-value" id="stat-total">0</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">🟢 Matched Rows</span>
+          <span class="stat-value" id="stat-matched" style="color: #60a5fa;">0</span>
+        </div>
+        <div class="stat-card unmatched">
+          <span class="stat-label">🟡 Action Required</span>
+          <span class="stat-value" id="stat-unmatched">0</span>
+        </div>
+        <div class="stat-card charity">
+          <span class="stat-label">Donation Amount</span>
+          <span class="stat-value" id="stat-charity-val">₹0</span>
+        </div>
+        <div class="stat-card subscription">
+          <span class="stat-label">Subscription Amt</span>
+          <span class="stat-value" id="stat-sub-val">₹0</span>
+        </div>
+      </div>
+
+      <!-- Quick Row Filter / Search -->
+      <div class="search-filter-bar">
+        <div class="search-wrapper">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="search-tx" class="search-input"
+            placeholder="Search by date (e.g. 2024-04-02), UPI description, extracted ID, or assigned name..."
+            oninput="renderTransactions()">
+        </div>
+        <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+          <input type="date" id="filter-date-start" class="form-input" style="padding: 0.4rem; width: auto;"
+            onchange="renderTransactions()" aria-label="Start date">
+          <span style="font-size: 0.85rem; color: var(--text-secondary); white-space: nowrap;">to</span>
+          <input type="date" id="filter-date-end" class="form-input" style="padding: 0.4rem; width: auto;"
+            onchange="renderTransactions()" aria-label="End date">
+        </div>
+        <div class="tx-filter-controls" style="display: flex; gap: 0.5rem;">
+          <select id="filter-status" class="form-input" style="padding: 0.4rem; width: auto;"
+            onchange="renderTransactions()">
+            <option value="all">Statuses</option>
+            <option value="matched">🟢 Matched</option>
+            <option value="unmatched">🟡 Action Required</option>
+          </select>
+          <select id="filter-agent" class="form-input" style="padding: 0.4rem; width: auto;"
+            onchange="renderTransactions()">
+            <option value="all">Agents</option>
+          </select>
+          <select id="filter-bank" class="form-input" style="padding: 0.4rem; width: auto;"
+            onchange="renderTransactions()">
+            <option value="all">Account Types</option>
+          </select>
+          <select id="filter-trntype" class="form-input filter-trntype-select" style="padding: 0.4rem; width: auto;"
+            onchange="renderTransactions()">
+            <option value="all">Transaction Types</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Spreadsheet Grid Area -->
+      <div class="spreadsheet-container">
+        <table class="excel-grid" id="transactions-grid">
+          <thead>
+            <tr>
+              <th class="row-number-header">#</th>
+              <th id="th-date" onclick="toggleDateSort()" style="cursor:pointer; user-select:none; white-space:nowrap;">
+                Date<span class="sort-arrow"> ▼</span></th>
+              <th>Raw Transaction Log (UPI Description)</th>
+              <th>Extracted UPI ID / Name</th>
+              <th>Type</th>
+              <th>Transaction Type</th>
+              <th>Amount (₹)</th>
+              <th>Matched Person</th>
+              <th>Assigned Agent (Follow Up)</th>
+            </tr>
+          </thead>
+          <tbody id="transactions-tbody">
+            <!-- Dynamic rows will go here -->
+          </tbody>
+        </table>
+
+        <!-- Pagination Controls -->
+        <div id="tx-pagination" class="search-filter-bar"
+          style="border-top: 1px solid var(--border-color); justify-content: center; gap: 1.5rem; padding: 0.6rem 1.5rem;">
+          <button class="btn btn-sm" onclick="changeTxPage(-1)">◀ Previous Page</button>
+          <span id="tx-page-info" style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);">Page 1 of
+            1</span>
+          <button class="btn btn-sm" onclick="changeTxPage(1)">Next Page ▶</button>
+        </div>
+
+        <!-- Empty State -->
+        <div id="empty-state-tx" class="empty-state" style="display: none;">
+          <div class="empty-state-icon">📊</div>
+          <div class="empty-state-title">No Transactions Uploaded</div>
+          <div class="empty-state-desc">Upload your downloaded manual transaction details CSV, or add empty rows to
+            begin mapping matching pairs.</div>
+          <div style="display: flex; gap: 0.75rem;">
+            <button class="btn btn-primary" onclick="loadSampleData()">Load Mock Sample Data</button>
+            <button class="btn btn-success" onclick="addNewTransactionRow()">Add Manual Row</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SHEET 2: MASTER DIRECTORY DATABASE TAB -->
+    <div id="content-people" class="tab-content">
+      <!-- Database Title Bar -->
+      <div class="search-filter-bar" style="border-top: none;">
+        <div class="search-wrapper">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="search-people" class="search-input"
+            placeholder="Search people by name, associated UPI ID or default agent..." oninput="renderPeople()">
+        </div>
+        <button class="btn btn-success" onclick="openNewPersonModal()">
+          👤 Add New Person
+        </button>
+      </div>
+
+      <!-- Spreadsheet Grid Area -->
+      <div class="spreadsheet-container">
+        <table class="excel-grid" id="people-grid">
+          <thead>
+            <tr>
+              <th class="row-number-header">#</th>
+              <th>Full Name</th>
+              <th>Associated UPI IDs (Separate multiple by comma)</th>
+              <th>Default Agent (Follow-up)</th>
+              <th>Default Transaction Type</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="people-tbody">
+            <!-- Dynamic rows will go here -->
+          </tbody>
+        </table>
+
+        <!-- Pagination Controls -->
+        <div id="people-pagination" class="search-filter-bar"
+          style="border-top: 1px solid var(--border-color); justify-content: center; gap: 1.5rem; padding: 0.6rem 1.5rem;">
+          <button class="btn btn-sm" onclick="changePeoplePage(-1)">◀ Previous Page</button>
+          <span id="people-page-info" style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);">Page 1
+            of 1</span>
+          <button class="btn btn-sm" onclick="changePeoplePage(1)">Next Page ▶</button>
+        </div>
+
+        <!-- Empty State -->
+        <div id="empty-state-people" class="empty-state" style="display: none;">
+          <div class="empty-state-icon">👥</div>
+          <div class="empty-state-title">Database Directory Empty</div>
+          <div class="empty-state-desc">No registered supporters or members exist in the directory. You can add them
+            manually or click below to prepopulate standard records.</div>
+          <button class="btn btn-primary" onclick="seedDefaultDatabase()">Seed Sample Database</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- SHEET 3: AGENT DIRECTORY TAB -->
+    <div id="content-agents" class="tab-content">
+      <div class="search-filter-bar" style="border-top: none;">
+        <div class="search-wrapper">
+          <span class="search-icon">🧭</span>
+          <input type="text" id="search-agents" class="search-input" placeholder="Search agents by name..."
+            oninput="renderAgents()">
+        </div>
+      </div>
+
+      <div class="spreadsheet-container">
+        <table class="excel-grid" id="agents-grid">
+          <thead>
+            <tr>
+              <th class="row-number-header">#</th>
+              <th>Agent Name</th>
+              <th>People Assigned</th>
+              <th>Matched Transactions</th>
+              <th>Unmatched Transactions</th>
+              <th>Total Transaction Amount (₹)</th>
+            </tr>
+          </thead>
+          <tbody id="agents-tbody">
+            <!-- Dynamic rows will go here -->
+          </tbody>
+        </table>
+
+        <div id="empty-state-agents" class="empty-state" style="display: none;">
+          <div class="empty-state-icon">🧭</div>
+          <div class="empty-state-title">No Agents Found</div>
+          <div class="empty-state-desc">Agents are derived from the people and transaction records.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SHEET 4: ADMIN USER MANAGEMENT TAB -->
+    <div id="content-admin" class="tab-content">
+      <div class="search-filter-bar" style="border-top: none;">
+        <div class="search-wrapper">
+          <span class="search-icon">🔐</span>
+          <input type="text" id="search-admin-users" class="search-input"
+            placeholder="Search users by username, display name, role or status..." oninput="renderAdminUsers()">
+        </div>
+      </div>
+
+      <div class="search-filter-bar" style="border-top: none; align-items: flex-end; flex-wrap: wrap;">
+        <div style="display: grid; grid-template-columns: repeat(4, minmax(140px, 1fr)); gap: 0.75rem; width: 100%;">
+          <div>
+            <label class="form-label" for="admin-new-username">Username</label>
+            <input id="admin-new-username" class="form-input" placeholder="e.g. agent2">
+          </div>
+          <div>
+            <label class="form-label" for="admin-new-display">Display Name</label>
+            <input id="admin-new-display" class="form-input" placeholder="e.g. Field Agent Two">
+          </div>
+          <div>
+            <label class="form-label" for="admin-new-role">Role</label>
+            <select id="admin-new-role" class="form-input"></select>
+          </div>
+          <div>
+            <label class="form-label" for="admin-new-password">Temporary Password</label>
+            <input id="admin-new-password" class="form-input" type="text" placeholder="Set initial password">
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="createAdminUser()">Create User</button>
+      </div>
+
+      <div id="admin-user-info" class="search-filter-bar"
+        style="border-top: none; font-size: 0.8rem; color: var(--text-secondary);">
+        Load users to manage role access.
+      </div>
+
+      <div class="spreadsheet-container">
+        <table class="excel-grid" id="admin-users-grid">
+          <thead>
+            <tr>
+              <th class="row-number-header">#</th>
+              <th>Username</th>
+              <th>Display Name</th>
+              <th>Role</th>
+              <th>Status</th>
+              <th>Created At</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="admin-users-tbody"></tbody>
+        </table>
+
+        <div id="empty-state-admin" class="empty-state" style="display: none;">
+          <div class="empty-state-icon">🛡</div>
+          <div class="empty-state-title">No Users Found</div>
+          <div class="empty-state-desc">No user accounts match the current search.</div>
+        </div>
+
+        <div id="audit-log-section" style="margin-top: 1rem; border-top: 1px solid var(--border-color);">
+          <div class="search-filter-bar" style="border-top: none;">
+            <div class="search-wrapper">
+              <span class="search-icon">🧾</span>
+              <input type="text" id="search-audit-logs" class="search-input"
+                placeholder="Search logs by action, actor, target, role or details..." oninput="renderAuditLogs()">
+            </div>
+            <button class="btn btn-sm" onclick="loadAuditLogs()">Refresh Logs</button>
+          </div>
+
+          <div id="audit-log-info" class="search-filter-bar"
+            style="border-top: none; font-size: 0.8rem; color: var(--text-secondary);">
+            Load logs to review activity history.
+          </div>
+
+          <table class="excel-grid" id="audit-logs-grid">
+            <thead>
+              <tr>
+                <th class="row-number-header">#</th>
+                <th>Time</th>
+                <th>Action</th>
+                <th>Actor</th>
+                <th>Role</th>
+                <th>Target</th>
+                <th>Details</th>
+              </tr>
+            </thead>
+            <tbody id="audit-logs-tbody"></tbody>
+          </table>
+
+          <div id="empty-state-audit" class="empty-state" style="display: none;">
+            <div class="empty-state-icon">🧾</div>
+            <div class="empty-state-title">No Audit Events</div>
+            <div class="empty-state-desc">No audit log entries match the current search or filters.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- QUICK-ADD NEW PERSON MODAL -->
+  <div class="modal-overlay" id="person-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="modal-title">
+          <span>👤 Register Supporter</span>
+        </div>
+        <button class="modal-close" onclick="closePersonModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <!-- Optional contextual alert if opened from a transaction row -->
+        <div id="modal-context-alert"
+          style="background-color: var(--accent-unmatched-glow); border: 1px solid rgba(245, 158, 11, 0.2); border-radius: 6px; padding: 0.75rem; margin-bottom: 1.25rem; font-size: 0.8rem; color: #fbbf24; display: none;">
+          Match not found for UPI. Registering this profile will automatically map existing and future transactions!
+        </div>
+
+        <form id="new-person-form">
+          <!-- Keep track of caller transaction index if any -->
+          <input type="hidden" id="modal-tx-index" value="">
+          <input type="hidden" id="modal-selected-supporter-id" value="">
+
+          <div class="form-group">
+            <label class="form-label" for="person-search">Search existing supporters</label>
+            <input type="text" id="person-search" class="form-input"
+              placeholder="Search by name, UPI ID, alias or payer name" oninput="updatePersonSearchResults()">
+            <div id="person-search-results"
+              style="margin-top: 0.5rem; max-height: 180px; overflow-y: auto; border: 1px solid rgba(209,213,219,0.8); border-radius: 8px; padding: 0.5rem; background: #fff;">
+            </div>
+          </div>
+
+          <div id="person-selected-supporter"
+            style="display:none; padding:0.85rem 0.85rem 0.85rem; border:1px solid rgba(59,130,246,0.25); border-radius:8px; margin-bottom:1rem; background: rgba(59,130,246,0.05);">
+            <div style="font-size:0.95rem; font-weight:600; margin-bottom:0.5rem;">Selected Supporter</div>
+            <div id="person-selected-supporter-summary" style="font-size:0.88rem; line-height:1.5;"></div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="person-name">Full Name</label>
+            <input type="text" id="person-name" class="form-input" placeholder="e.g. Rohit Sharma" required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="person-upi">Associated UPI ID / Extracted Name</label>
+            <input type="text" id="person-upi" class="form-input" placeholder="e.g. rohit@paytm or SENDER NAME"
+              required>
+            <p style="font-size: 0.7rem; color: var(--text-muted); margin-top: 0.25rem;">Matches during bank statement
+              parsing. Use this to add a new UPI alias or payer name.</p>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="person-agent">Assigned Agent</label>
+              <select id="person-agent" class="form-input" required>
+                <option value="Ayona">Ayona</option>
+                <option value="Betty">Betty</option>
+                <option value="Direct Intern">Direct Intern</option>
+                <option value="DirectFOK">DirectFOK</option>
+                <option value="DirectOfficePurchase">DirectOfficePurchase</option>
+                <option value="Event">Event</option>
+                <option value="Jago2025">Jago2025</option>
+                <option value="Jimcy">Jimcy</option>
+                <option value="Leena">Leena</option>
+                <option value="OnlineTransaction">OnlineTransaction</option>
+                <option value="Rani">Rani</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="person-type">Default Transaction Type</label>
+              <select id="person-type" default class="form-input" required>
+                <option value="Type">Select a type</option>
+                <option value="Books Sale">Books Sale</option>
+                <option value="Cash Sales">Cash Sales</option>
+                <option value="Cash - Donation Received">Cash - Donation Received</option>
+                <option value="Cash - Expense Payment">Cash - Expense Payment</option>
+                <option value="Donation">Donation</option>
+                <option value="Magazine Sales">Magazine Sales</option>
+                <option value="Other Dispatch Charges">Other Dispatch Charges</option>
+                <option value="Payment - Contract Work">Payment - Contract Work</option>
+                <option value="Payment - Salary">Payment - Salary</option>
+                <option value="Payment - Vendor Invoice">Payment - Vendor Invoice</option>
+                <option value="Subscription">Subscription</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="modal-actions" style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1rem;">
+            <button type="button" class="btn" onclick="closePersonModal()">Cancel</button>
+            <button id="person-modal-submit-btn" type="submit" class="btn btn-primary">Create Profile & Match</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="merge-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="modal-title">
+          <span>🔀 Merge Supporter Profiles</span>
+        </div>
+        <button class="modal-close" onclick="closeMergeModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="merge-source-person-id" value="">
+
+        <div class="form-group">
+          <label class="form-label">Source Supporter</label>
+          <div id="merge-source-summary"
+            style="padding:0.75rem; border:1px solid rgba(209,213,219,0.8); border-radius:8px; background:#f9fafb; min-height:42px;">
+            Select a source supporter to merge.
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="merge-target-person">Merge into supporter</label>
+          <select id="merge-target-person" class="form-input"></select>
+        </div>
+
+        <div class="modal-actions" style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1rem;">
+          <button type="button" class="btn" onclick="closeMergeModal()">Cancel</button>
+          <button type="button" class="btn btn-primary" onclick="confirmMergeSupporter()">Merge Profiles</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="db_seed_relevant.js?v=2"></script>
+  <script src="app.js?v=2"></script>
+  <div id="toast-container" aria-live="polite" aria-atomic="true"></div>
+</body>
+
+</html>

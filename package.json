@@ -1,0 +1,21 @@
+{
+  "name": "charity-transactions-web",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Charity and subscription ledger with API bootstrap for hosted multi-user architecture",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "generate:azure-migration": "python generate_azure_sql_migration.py"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "jose": "^6.2.3",
+    "sqlite3": "^5.1.7"
+  }
+}

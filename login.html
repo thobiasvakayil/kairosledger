@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login | Charity Ledger</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap">
+  <script src="https://alcdn.msauth.net/browser/2.39.0/js/msal-browser.min.js" defer></script>
+  <style>
+    :root {
+      --auth-bg-base: #0c121d;
+      --auth-bg-surface: rgba(16, 24, 39, 0.82);
+      --auth-bg-elevated: rgba(23, 34, 56, 0.82);
+      --auth-border: rgba(148, 163, 184, 0.22);
+      --auth-highlight: #2dd4bf;
+      --auth-highlight-soft: rgba(45, 212, 191, 0.12);
+      --auth-warn-soft: rgba(245, 158, 11, 0.14);
+      --auth-font: 'Manrope', 'Segoe UI', sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: var(--auth-font);
+      background:
+        radial-gradient(circle at 12% 12%, rgba(45, 212, 191, 0.18), transparent 42%),
+        radial-gradient(circle at 85% 4%, rgba(59, 130, 246, 0.16), transparent 40%),
+        linear-gradient(160deg, #0b111c 0%, #0d1523 44%, #121b2c 100%);
+      color: #e2e8f0;
+      min-height: 100vh;
+      display: block;
+    }
+
+    .auth-shell {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 1.5rem;
+    }
+
+    .auth-card {
+      width: 100%;
+      max-width: 460px;
+      display: block;
+      background: var(--auth-bg-surface);
+      border: 1px solid var(--auth-border);
+      border-radius: 18px;
+      box-shadow: 0 32px 65px rgba(2, 6, 23, 0.55);
+      overflow: hidden;
+      backdrop-filter: blur(9px);
+      -webkit-backdrop-filter: blur(9px);
+    }
+
+    .auth-brand {
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+      margin-bottom: 1.15rem;
+    }
+
+    .auth-logo {
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      display: grid;
+      place-items: center;
+      font-size: 1.05rem;
+      font-weight: 800;
+      background: linear-gradient(145deg, #0ea5e9, #14b8a6);
+      color: #f8fafc;
+      box-shadow: 0 10px 24px rgba(20, 184, 166, 0.25);
+    }
+
+    .auth-brand-title {
+      font-size: 0.95rem;
+      font-weight: 800;
+      letter-spacing: 0.01em;
+      color: #f8fafc;
+    }
+
+    .auth-brand-sub {
+      font-size: 0.75rem;
+      color: #94a3b8;
+      margin-top: 0.05rem;
+    }
+
+    .auth-subtext {
+      color: #9fb0c9;
+      font-size: 0.83rem;
+      margin-bottom: 1.2rem;
+    }
+
+    .auth-form-wrap {
+      padding: 1.55rem;
+      background: linear-gradient(180deg, rgba(15, 23, 42, 0.78), rgba(15, 23, 42, 0.62));
+    }
+
+    .auth-title {
+      margin-bottom: 0.15rem;
+      font-size: 1.38rem;
+      color: #f8fafc;
+      letter-spacing: -0.01em;
+    }
+
+    .auth-helper-row {
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      margin-bottom: 1.2rem;
+      padding: 0.5rem 0.6rem;
+      border-radius: 10px;
+      border: 1px solid rgba(45, 212, 191, 0.28);
+      background: var(--auth-highlight-soft);
+      color: #a7f3d0;
+      font-size: 0.76rem;
+      font-weight: 600;
+    }
+
+    .auth-helper-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--auth-highlight);
+      box-shadow: 0 0 0 4px rgba(45, 212, 191, 0.18);
+    }
+
+    .auth-form-wrap .form-group {
+      margin-bottom: 1rem;
+    }
+
+    .auth-form-wrap .form-label {
+      color: #cbd5e1;
+      margin-bottom: 0.42rem;
+      font-size: 0.73rem;
+    }
+
+    .auth-form-wrap .form-input {
+      height: 44px;
+      border-radius: 10px;
+      border: 1px solid rgba(148, 163, 184, 0.3);
+      background: rgba(15, 23, 42, 0.66);
+      color: #f8fafc;
+      font-size: 0.84rem;
+    }
+
+    .auth-form-wrap .form-input::placeholder {
+      color: #64748b;
+    }
+
+    .auth-form-wrap .form-input:focus {
+      border-color: rgba(59, 130, 246, 0.65);
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.18);
+    }
+
+    #login-btn {
+      height: 44px;
+      border-radius: 10px;
+      font-size: 0.84rem;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+    }
+
+    .auth-error {
+      margin-top: 0.7rem;
+      color: #fca5a5;
+      font-size: 0.8rem;
+      min-height: 1.1rem;
+      font-weight: 600;
+    }
+
+    .auth-footnote {
+      margin-top: 0.8rem;
+      color: #8ea0bb;
+      font-size: 0.7rem;
+      line-height: 1.45;
+      border-top: 1px solid rgba(148, 163, 184, 0.18);
+      padding-top: 0.62rem;
+    }
+
+    .auth-divider {
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+      margin: 1rem 0;
+      color: #7c8ca8;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .auth-divider::before,
+    .auth-divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: rgba(148, 163, 184, 0.18);
+    }
+
+    .auth-provider-card {
+      margin-bottom: 1rem;
+      padding: 0.95rem;
+      border-radius: 12px;
+      border: 1px solid rgba(148, 163, 184, 0.22);
+      background: var(--auth-bg-elevated);
+    }
+
+    .auth-provider-title {
+      font-size: 0.92rem;
+      font-weight: 800;
+      color: #f8fafc;
+      margin-bottom: 0.25rem;
+    }
+
+    .auth-provider-text {
+      font-size: 0.8rem;
+      color: #9fb0c9;
+      margin-bottom: 0.8rem;
+      line-height: 1.45;
+    }
+
+    .auth-provider-note {
+      margin-top: 0.7rem;
+      font-size: 0.72rem;
+      color: #8ea0bb;
+    }
+
+    .auth-hidden {
+      display: none !important;
+    }
+
+    @media (max-width: 920px) {
+      .auth-form-wrap {
+        padding: 1.15rem;
+      }
+
+      .auth-title {
+        font-size: 1.2rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="auth-shell">
+    <div class="auth-card">
+      <section class="auth-form-wrap">
+        <div class="auth-brand">
+          <div class="auth-logo">C</div>
+          <div>
+            <div class="auth-brand-title">Charity Ledger Portal</div>
+            <div class="auth-brand-sub">Finance Operations Access</div>
+          </div>
+        </div>
+        <h1 class="auth-title">Sign In</h1>
+        <p class="auth-subtext">Login to continue to the Charity & Subscription Ledger.</p>
+        <div id="entra-card" class="auth-provider-card auth-hidden">
+          <div class="auth-provider-title">Sign in with Microsoft</div>
+          <div id="entra-status" class="auth-provider-text">Use your Entra ID account to access the application.</div>
+          <button id="entra-login-btn" class="btn btn-primary" type="button" style="width: 100%;">Continue with Microsoft</button>
+          <div class="auth-provider-note">Your organization controls sign-in, MFA, and password policies.</div>
+        </div>
+
+        <div id="local-divider" class="auth-divider auth-hidden">Or use local credentials</div>
+
+        <form id="login-form" autocomplete="on" class="auth-hidden">
+          <div class="form-group">
+            <label class="form-label" for="username">Username</label>
+            <input class="form-input" id="username" name="username" placeholder="Enter username" required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="password">Password</label>
+            <input class="form-input" id="password" name="password" type="password" placeholder="Enter password" required>
+          </div>
+
+          <button id="login-btn" class="btn btn-primary" type="submit" style="width: 100%;">Login</button>
+          <div id="login-error" class="auth-error"></div>
+          <div class="auth-footnote">
+            Need account access? Contact your administrator.
+          </div>
+        </form>
+      </section>
+    </div>
+  </div>
+
+  <script src="login.js"></script>
+</body>
+</html>
