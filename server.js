@@ -2271,6 +2271,10 @@ app.put('/api/state', requireRole(['admin', 'agent', 'reviewer']), async (req, r
 
 app.use(express.static(__dirname));
 
-app.listen(PORT, () => {
-  console.log(`Server running at http://127.0.0.1:${PORT}`);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Server running at http://127.0.0.1:${PORT}`);
+  });
+}
+
+module.exports = app;
