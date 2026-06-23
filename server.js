@@ -3,7 +3,7 @@ const cors = require('cors');
 const path = require('path');
 const sqlite3 = require('sqlite3').verbose();
 const crypto = require('crypto');
-const { createRemoteJWKSet, jwtVerify } = require('jose');
+const { createRemoteJWKSet, jwtVerify, SignJWT } = require('jose');
 
 const app = express();
 const PORT = process.env.PORT || 8000;
@@ -39,6 +39,34 @@ const ROLE_PERMISSIONS = {
 const ALL_ROLES = Object.keys(ROLE_PERMISSIONS);
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const sessions = new Map();
+
+const AUTH_JWT_SECRET = normalizeValue(process.env.AUTH_JWT_SECRET);
+const AUTH_JWT_KEY = AUTH_JWT_SECRET ? new TextEncoder().encode(AUTH_JWT_SECRET) : null;
+
+async function signLocalJwt(user) {
+  if (!AUTH_JWT_KEY) return null;
+  return await new SignJWT({
+    userId: user.id,
+    username: user.username,
+    displayName: user.display_name || user.username,
+    role: user.role,
+    agentScope: user.agent_scope || ''
+  })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuedAt()
+    .setExpirationTime(Math.floor(SESSION_TTL_MS / 1000) + 's')
+    .sign(AUTH_JWT_KEY);
+}
+
+async function verifyLocalJwt(token) {
+  if (!AUTH_JWT_KEY) return null;
+  try {
+    const { payload } = await jwtVerify(token, AUTH_JWT_KEY, { algorithms: ['HS256'] });
+    return payload;
+  } catch (_err) {
+    return null;
+  }
+}
 
 const ENTRA_TENANT_ID = normalizeValue(process.env.ENTRA_TENANT_ID);
 const ENTRA_API_CLIENT_ID = normalizeValue(process.env.ENTRA_API_CLIENT_ID || process.env.ENTRA_CLIENT_ID);
@@ -171,7 +199,23 @@ async function resolveAuthContext(req) {
     };
   }
 
-  if (ENTRA_ENABLED) {
+  const claims = await verifyLocalJwt(token);
+    if (claims && ALL_ROLES.includes(claims.role)) {
+      return {
+        authToken: token,
+        authType: 'local',
+        user: {
+          id: claims.userId,
+          username: claims.username,
+          displayName: claims.displayName,
+          role: claims.role,
+          agentScope: claims.agentScope || '',
+          authProvider: 'local'
+        }
+      };
+    }
+
+    if (ENTRA_ENABLED) {
     try {
       const claims = await verifyEntraToken(token);
       return {
@@ -301,8 +345,9 @@ function verifyPassword(password, storedHash) {
   }
 }
 
-function createSession(user) {
-  const token = crypto.randomBytes(32).toString('hex');
+async function createSession(user) {
+  const jwt = await signLocalJwt(user);
+  const token = jwt || crypto.randomBytes(32).toString('hex');
   sessions.set(token, {
     userId: user.id,
     username: user.username,
@@ -645,7 +690,7 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    const token = createSession(user);
+    const token = await createSession(user);
     await writeAuditLog(db, {
       actor: { id: user.id, username: user.username, role: user.role },
       action: 'AUTH_LOGIN_SUCCESS',
