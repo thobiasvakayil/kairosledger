@@ -3,7 +3,17 @@
   "builds": [
     {
       "src": "server.js",
-      "use": "@vercel/node"
+      "use": "@vercel/node",
+      "config": {
+        "includeFiles": [
+          "index.html",
+          "login.html",
+          "login.js",
+          "app.js",
+          "styles.css",
+          "Kairoserec_relevant.db"
+        ]
+      }
     }
   ],
   "routes": [

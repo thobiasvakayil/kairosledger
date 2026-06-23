@@ -15,7 +15,7 @@
   "dependencies": {
     "cors": "^2.8.5",
     "express": "^4.19.2",
-    "jose": "^6.2.3",
+    "jose": "^4.15.9",
     "sqlite3": "^5.1.7"
   }
 }
