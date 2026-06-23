@@ -7,8 +7,13 @@ const { createRemoteJWKSet, jwtVerify } = require('jose');
 
 const app = express();
 const PORT = process.env.PORT || 8000;
-const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'Kairoserec_relevant.db');
-
+const fs = require('fs');
+const BUNDLED_DB = path.join(__dirname, 'Kairoserec_relevant.db');
+const DB_PATH = process.env.DB_PATH
+  || (process.env.VERCEL ? '/tmp/Kairoserec_relevant.db' : BUNDLED_DB);
+if (process.env.VERCEL && !fs.existsSync(DB_PATH)) {
+  fs.copyFileSync(BUNDLED_DB, DB_PATH);
+}
 app.use(cors());
 app.use(express.json({ limit: '20mb' }));
 
